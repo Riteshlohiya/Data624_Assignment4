@@ -1,0 +1,199 @@
+---
+title: "Data624 Data PreProcessing Assignment4"
+author: "Ritesh Lohiya"
+date: "February 27, 2019"
+output: html_document 
+---
+
+# Data624 Data Preprocessing Assignment4 
+
+# Chapter 3
+
+###Exercise 3.1 : The UC Irvine Machine Learning Repository6 contains a data set related to glass identification. The data consist of 214 glass samples labeled as one of seven class categories. There are nine predictors, including the refractive index and percentages of eight elements: Na, Mg, Al, Si, K, Ca, Ba, and Fe. The data can be accessed via:
+
+```{r}
+suppressMessages(suppressWarnings(library(mlbench)))
+suppressMessages(suppressWarnings(library(car)))
+suppressMessages(suppressWarnings(library(caret)))
+suppressMessages(suppressWarnings(library(tidyverse)))
+suppressMessages(suppressWarnings(library(corrgram)))
+suppressMessages(suppressWarnings(library(psych)))
+suppressMessages(suppressWarnings(library(moments)))
+suppressMessages(suppressWarnings(library(mice)))
+suppressMessages(suppressWarnings(library(Amelia)))
+suppressMessages(suppressWarnings(library(kableExtra)))
+data(Glass)
+str(Glass)
+```
+
+####a. Using visualizations, explore the predictor variables to understand their distributions as well as the relationships between predictors.
+
+####Lets plot histographs to see the distributions.
+
+```{r}
+a <- Glass[,1:9]
+par(mfrow = c(3, 3))
+for (i in 1:ncol(a)) {
+  hist(a[ ,i], xlab = names(a[i]), main = paste(names(a[i]), "Histogram"), col="blue")  
+}
+```
+
+####Finding correlations: The correlation plot below shows how variables in the dataset are related to each other. 
+
+```{r}
+names(Glass)
+cor(drop_na(Glass[,1:9]))
+```
+
+```{r}
+pairs.panels(Glass[1:9]) 
+``` 
+
+From the above plots, we can see that RI, Na, Al and Si have closely normal distributions and othera are do not have normal distributions. Also we can see RI and Ca are highly positively correlated. Others do not have good correlations.
+
+####b. Do there appear to be any outliers in the data? Are any predictors skewed?
+
+Lets plot "Boxplot"" to find the outliers and "Density Plot" to find the skewness in the predictors.
+
+```{r}
+a <- Glass[,1:9]
+par(mfrow = c(3, 3))
+for (i in 1:ncol(a)) {
+  boxplot(a[ ,i], ylab = names(a[i]), horizontal=T,
+          main = paste(names(a[i]), "Boxplot"), col="blue")
+}
+
+for (i in 1:ncol(a)) {
+  d <- density(a[,i], na.rm = TRUE)
+  plot(d, main = paste(names(a[i]), "Density"))
+  polygon(d, col="blue")
+}
+
+```
+
+
+In terms of outliers, Mg looks good as it does not have outliers. RI, Na, Al, Si, K and Fe do have outliers. But Ca and Ba are having max outliers. 
+
+Skewness:
+
+RI: - Right skewed
+
+Na: - Right skewed
+
+Mg: - Left skewed
+
+AL: - Looks normal
+
+Si: - Looks normal
+
+K: - Left skewed
+
+Ca: - Right skewed
+
+Ba: - Right skewed
+
+Fe: - Right skewed
+
+####c. Are there any relevant transformations of one or more predictors that might improve the classification model?
+
+We can use Box-Cox transformation to understand the transformation needed to improve our model.
+
+```{r}
+bx <- preProcess(Glass[-10], method=c('BoxCox', 'center', 'scale'))
+Glass1 <- predict(bx, Glass[-10])
+
+par(mfrow = c(3, 3))
+for (i in 1:ncol(Glass1)) {
+  boxplot(Glass1[ ,i], ylab = names(Glass1[i]), horizontal=T,
+          main = paste(names(Glass1[i]), "Boxplot"), col="blue")
+}
+
+for (i in 1:ncol(Glass1)) {
+  d <- density(Glass1[,i], na.rm = TRUE)
+  plot(d, main = paste(names(Glass1[i]), "Density"))
+  polygon(d, col="blue")
+}
+```
+
+We can see that with the transformation the skewness of Na and Ca has improved.
+
+###Exercise 3.2: The soybean data can also be found at the UC Irvine Machine Learning Repository. Data were collected to predict disease in 683 soybeans. The 35 predictors are mostly categorical and include information on the environmental conditions (e.g., temperature, precipitation) and plant conditions (e.g., left spots, mold growth). The outcome labels consist of 19 distinct classes. The data can be loaded via:
+
+```{r}
+library(mlbench)
+data(Soybean)
+str(Soybean)
+```
+
+####a. Investigate the frequency distributions for the categorical predictors. Are any of the distributions degenerate in the ways discussed earlier in this chapter?
+
+Degenerate distributions are those where the predictor variable has a single unique value or a handful of unique values that occur with very low frequencies.
+
+```{r}
+S1 <- Soybean[,2:36]
+par(mfrow = c(3, 6))
+for (i in 1:ncol(S1)) {
+  smoothScatter(S1[ ,i], ylab = names(S1[i]))
+}
+```
+
+```{r}
+nearZeroVar(S1, names = TRUE, saveMetrics=T)
+```
+
+There are a few degenerate and that is due to the low frequencies. Most important once are mycelium and sclerotia. The Smoothed Density Scatterplot for the variables shows one color across the chart. The variables leaf.mild and int.discolor appear to show near-zero variance.
+
+
+####b. Roughly 18% of the data are missing. Are there particular predictors that are more likely to be missing? Is the pattern of missing data related to the classes?
+
+The missing values heat map and the counts are given below.
+
+```{r}
+Non_NAs <- sapply(Soybean, function(y) sum(length(which(!is.na(y)))))
+NAs <- sapply(Soybean, function(y) sum(length(which(is.na(y)))))
+NA_Percent <- NAs / (NAs + Non_NAs)
+NA_SUMMARY <- data.frame(Non_NAs,NAs,NA_Percent)
+missmap(Soybean, main = "Missing Values")
+kable(NA_SUMMARY)
+```
+
+```{r}
+Soybean %>%
+mutate(Total = n()) %>% 
+filter(!complete.cases(.)) %>%
+group_by(Class) %>%
+mutate(Missing = n(), Proportion=Missing/Total) %>%
+select(Class, Missing, Proportion) %>%
+unique()
+```
+
+The above grid show the number of missing values for each variable. Checking if a pattern of missing data related to the classes exists is done by filtering, grouping, and mutating the data with dplyr. The majority of the missing values are in the phytophthora-rot class which has nearly 10%. The pattern of missing data is related to the classes. Mostly the phytophthora-rot class however since the other four variables only have between 1% and 2%.
+
+####c. Develop a strategy for handling missing data, either by eliminating predictors or imputation.
+
+Missing values can be handeled in different ways. The easiest way is to delete the rows. Next if the data is skewed we can use median as replacement for missing values. If the data is mormal we can use mean. For non-numberic data we can use mode. The are other different ways like doing regression to replace the missing values.One such way is using MICE. The mice() function in the mice package conducts Multivariate Imputation by Chained Equations (MICE) on multivariate datasets with missing values. The function has many imputation methods that can be applied to the data. We will be using is PMM i.e. predictive mean matching method.
+
+```{r}
+Soybean1 <- mice(Soybean, method="pmm", printFlag=F, seed=112)
+Soybean1 <- complete(Soybean1)
+Soybean1 <- as.data.frame(Soybean1)
+missmap(Soybean1, main = "Missing Values")
+```
+
+We can see that there is no missing values in the dataset.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
